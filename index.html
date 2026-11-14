@@ -1,0 +1,1729 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio Vitre Embuée — Créateur de Reels</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600&family=Patrick+Hand&family=Satisfy&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0d10;
+            color: #e2e8f0;
+            overflow-x: hidden;
+            overflow-y: auto;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        @media (min-width: 1024px) {
+            body {
+                overflow: hidden;
+            }
+        }
+
+        /* Curseurs personnalisés (agrandis pour le tactile) */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: #1e242d;
+            height: 8px;
+            border-radius: 999px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            transition: transform 0.15s ease, background-color 0.15s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+            background: #7dd3fc;
+        }
+
+        /* Cadre Reel 9:16 adaptatif mobile & desktop */
+        .reel-wrapper {
+            aspect-ratio: 9 / 16;
+            height: min(68vh, 720px);
+            max-width: 92vw;
+            position: relative;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
+            background: #11151c;
+            touch-action: none;
+        }
+
+        @media (min-width: 1024px) {
+            .reel-wrapper {
+                height: min(88vh, 860px);
+            }
+        }
+
+        .reel-wrapper.fullscreen-rec {
+            height: 84vh;
+            border-radius: 12px;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            touch-action: none;
+        }
+
+        /* Curseurs personnalisés */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: #1e242d;
+            height: 6px;
+            border-radius: 999px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            transition: transform 0.15s ease, background-color 0.15s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+            background: #7dd3fc;
+        }
+
+        /* Cadre Reel 9:16 adaptatif */
+        .reel-wrapper {
+            aspect-ratio: 9 / 16;
+            height: min(88vh, 860px);
+            max-width: 92vw;
+            position: relative;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
+            background: #11151c;
+        }
+
+        .reel-wrapper.fullscreen-rec {
+            height: 94vh;
+            border-radius: 12px;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Cercle indicateur de taille du doigt */
+        #brush-cursor {
+            position: fixed;
+            pointer-events: none;
+            border: 1.5px solid rgba(255, 255, 255, 0.55);
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+            display: none;
+            transition: width 0.08s ease, height 0.08s ease;
+        }
+
+        @keyframes pulse-rec {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.35; }
+        }
+        .rec-dot {
+            animation: pulse-rec 1.2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="min-h-screen lg:h-screen w-screen flex flex-col lg:flex-row items-center justify-start lg:justify-center p-3 pb-24 lg:p-6 gap-4 lg:gap-6">
+
+    <!-- Indicateur visuel du pinceau -->
+    <div id="brush-cursor"></div>
+
+    <!-- Boîte de notification discrète -->
+    <div id="toast-box" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 border border-slate-700/80 text-slate-100 px-4 py-2.5 rounded-xl text-sm shadow-xl backdrop-blur-md transition-all duration-300 opacity-0 pointer-events-none">
+        Notification
+    </div>
+
+    <!-- Zone centrale : Aperçu 9:16 -->
+    <main class="w-full lg:flex-1 flex flex-col items-center justify-center lg:h-full relative pt-1 lg:pt-0">
+        
+        <!-- Barre supérieure minimaliste en mode masqué -->
+        <div id="minimal-toolbar" class="hidden fixed top-4 right-4 z-40 flex items-center gap-2 bg-slate-900/90 backdrop-blur-md border border-slate-700/60 px-3 py-2 rounded-xl shadow-lg">
+            <button id="btn-quick-reset" title="Re-embuer (Touche R)" class="text-xs font-medium text-slate-200 hover:text-sky-400 px-3 py-2 rounded-lg bg-slate-800/90 transition">
+                Re-embuer (R)
+            </button>
+            <button id="btn-show-ui" title="Afficher les réglages (Touche H)" class="text-xs font-medium text-sky-400 hover:text-sky-300 px-3 py-2 rounded-lg bg-sky-950/80 border border-sky-500/30 transition">
+                Réglages (H)
+            </button>
+        </div>
+
+        <!-- Indicateur d'enregistrement vidéo actif -->
+        <div id="rec-badge" class="hidden fixed top-4 left-4 z-40 flex items-center gap-2 bg-red-950/90 border border-red-500/50 text-red-200 px-3.5 py-1.5 rounded-full text-xs font-medium shadow-lg backdrop-blur-md">
+            <span class="w-2.5 h-2.5 rounded-full bg-red-500 rec-dot"></span>
+            <span id="rec-timer">Enregistrement 00:00</span>
+        </div>
+
+        <!-- Conteneur du Canvas 9:16 (Résolution interne 1080x1920) -->
+        <div id="reel-container" class="reel-wrapper lg:cursor-none">
+            <!-- Couche 1 : Image nette -->
+            <canvas id="bg-canvas" width="1080" height="1920"></canvas>
+            <!-- Couche 2 : Buée + gouttelettes + masque effaçable -->
+            <canvas id="fog-canvas" width="1080" height="1920"></canvas>
+            <!-- Couche 3 : Coulures d'eau animées -->
+            <canvas id="drip-canvas" width="1080" height="1920"></canvas>
+        </div>
+
+        <!-- Barre d'actions rapides tactile (Mobile & Tablette) -->
+        <div id="mobile-quick-bar" class="flex lg:hidden items-center justify-center gap-2 mt-3 w-full max-w-[92vw]">
+            <button id="btn-mobile-reset" type="button" class="flex-1 py-2.5 px-3 rounded-xl bg-slate-800/95 active:bg-slate-700 border border-slate-700/80 text-xs font-medium text-slate-200 flex items-center justify-center gap-1.5 shadow">
+                <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <span>Re-embuer</span>
+            </button>
+            <button id="btn-mobile-clear" type="button" class="flex-1 py-2.5 px-3 rounded-xl bg-indigo-500 active:bg-indigo-400 text-xs font-semibold text-white flex items-center justify-center gap-1.5 shadow">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+                </svg>
+                <span>Révéler fond</span>
+            </button>
+            <button id="btn-mobile-record" type="button" class="flex-1 py-2.5 px-3 rounded-xl bg-red-600/90 active:bg-red-500 text-xs font-semibold text-white flex items-center justify-center gap-1.5 shadow">
+                <span id="mobile-rec-dot" class="w-2 h-2 rounded-full bg-white"></span>
+                <span id="mobile-rec-text">Filmer</span>
+            </button>
+        </div>
+
+        <p id="helper-hint" class="mt-2.5 text-xs text-slate-400 text-center px-2">
+            <span class="lg:hidden">Passe ton doigt directement sur l'écran pour écrire dans la buée</span>
+            <span class="hidden lg:inline">Écris sur la vitre ou lance l'écriture automatique • <kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300">R</kbd> re-embuer • <kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300">H</kbd> masquer UI</span>
+        </p>
+    </main>
+
+    <!-- Panneau de contrôle latéral / inférieur sur mobile -->
+    <aside id="control-panel" class="w-full max-w-[94vw] lg:max-w-none lg:w-[410px] bg-[#13171f] border border-slate-800/90 rounded-2xl p-4 lg:p-5 flex flex-col gap-4 shadow-2xl lg:max-h-[94vh] lg:overflow-y-auto z-30">
+        
+        <!-- En-tête -->
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3.5">
+            <div>
+                <h1 class="text-base font-semibold text-white tracking-tight">Studio Vitre Embuée</h1>
+                <p class="text-xs text-slate-400 mt-0.5">Format vertical 9:16 • Tactile & Desktop</p>
+            </div>
+            <button id="btn-download-app" type="button" title="Télécharger l'application autonome pour mobile" class="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 transition shadow-sm">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                <span>Télécharger l'appli</span>
+            </button>
+        </div>
+
+        <!-- Fond dégradé ou importation d'image -->
+        <div class="space-y-1.5">
+            <label class="block text-xs font-medium text-slate-300">1. Arrière-plan (Dégradé bleu/vert actif)</label>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-reset-gradient" type="button" class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-xs font-medium text-sky-300 transition">
+                    <span class="w-3 h-3 rounded-full bg-gradient-to-tr from-[#21479d] via-[#0098da] to-[#3bc49c]"></span>
+                    <span>Dégradé PRED</span>
+                </button>
+                <label for="image-upload" class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 text-xs font-medium text-slate-200 cursor-pointer transition">
+                    <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <span>Importer photo</span>
+                </label>
+            </div>
+            <input id="image-upload" type="file" accept="image/*" class="hidden">
+        </div>
+
+        <!-- Sélection du mode d'écriture -->
+        <div class="space-y-3 bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">2. Temps 1 — Écriture du message</h2>
+            </div>
+
+            <!-- Onglets de bascule -->
+            <div class="grid grid-cols-2 gap-1.5 p-1 bg-slate-950/90 rounded-xl border border-slate-800/80">
+                <button id="tab-auto" type="button" class="py-2 px-2.5 rounded-lg text-xs font-medium transition bg-sky-500 text-slate-950 shadow-sm">
+                    Écriture auto (Texte)
+                </button>
+                <button id="tab-manual" type="button" class="py-2 px-2.5 rounded-lg text-xs font-medium transition text-slate-300 hover:text-white">
+                    Pinceau lissé (Souris)
+                </button>
+            </div>
+
+            <!-- Panneau Mode 1 : Écriture Automatique -->
+            <div id="panel-auto" class="space-y-3 pt-1">
+                <div class="space-y-1">
+                    <label for="auto-text-input" class="block text-[11px] font-medium text-slate-300">Message à écrire sur la buée</label>
+                    <textarea id="auto-text-input" rows="2" placeholder="Ex: Rendez-vous à l'ADF !" class="w-full bg-slate-950 border border-slate-700/80 focus:border-sky-500 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 outline-none resize-none">Rendez-vous
+à l'ADF !</textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5">
+                    <!-- Choix de la police manuscrite -->
+                    <div class="space-y-1">
+                        <label for="auto-font-select" class="block text-[11px] text-slate-400">Style manuscrit</label>
+                        <select id="auto-font-select" class="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-sky-500">
+                            <option value="Caveat">Caveat (Naturel)</option>
+                            <option value="Dancing Script">Dancing Script (Calligraphie)</option>
+                            <option value="Patrick Hand">Patrick Hand (Feutre doux)</option>
+                            <option value="Satisfy">Satisfy (Cursif fluide)</option>
+                        </select>
+                    </div>
+
+                    <!-- Vitesse d'écriture -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-[11px]">
+                            <span class="text-slate-400">Vitesse</span>
+                            <span id="val-auto-speed" class="text-sky-400 font-medium">Normale</span>
+                        </div>
+                        <input id="slider-auto-speed" type="range" min="1" max="5" value="3" class="w-full mt-2">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5">
+                    <!-- Taille du texte -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-[11px]">
+                            <span class="text-slate-400">Taille texte</span>
+                            <span id="val-auto-size" class="text-sky-400 font-medium">135 px</span>
+                        </div>
+                        <input id="slider-auto-size" type="range" min="70" max="220" value="135" class="w-full">
+                    </div>
+
+                    <!-- Position verticale Y -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-[11px]">
+                            <span class="text-slate-400">Hauteur (Y)</span>
+                            <span id="val-auto-y" class="text-sky-400 font-medium">55 %</span>
+                        </div>
+                        <input id="slider-auto-y" type="range" min="18" max="85" value="55" class="w-full">
+                    </div>
+                </div>
+
+                <button id="btn-start-auto" type="button" class="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition shadow-md shadow-emerald-500/20">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                    </svg>
+                    <span id="btn-start-auto-text">1. Écrire le message seul</span>
+                </button>
+            </div>
+
+            <!-- Panneau Mode 2 : Pinceau Lissé à la souris -->
+            <div id="panel-manual" class="hidden space-y-3 pt-1">
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300">Stabilisateur anti-tremblement</span>
+                        <span id="val-stabilizer" class="text-sky-400 font-medium">Moyen</span>
+                    </div>
+                    <input id="slider-stabilizer" type="range" min="1" max="3" value="2" class="w-full">
+                    <p class="text-[11px] text-slate-400 leading-snug">
+                        Tire une corde virtuelle (« Lazy Mouse ») avec courbes de Bézier pour arrondir tes lettres à la souris ou au trackpad.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Temps 2 : Révélation complète de l'image de fond -->
+        <div class="space-y-2.5 bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">3. Temps 2 — Révéler le fond net</h2>
+
+            <div class="space-y-1">
+                <label for="clear-style-select" class="block text-[11px] text-slate-300">Animation d'effacement de toute la buée</label>
+                <select id="clear-style-select" class="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-2 text-xs text-slate-200 outline-none focus:border-sky-500">
+                    <option value="wipe">Coup de main / chiffon large (Essuie-glace)</option>
+                    <option value="dissolve">Dissipation douce et progressive</option>
+                </select>
+            </div>
+
+            <button id="btn-clear-all" type="button" class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-semibold text-xs transition shadow-md shadow-indigo-500/20">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+                </svg>
+                <span>Enlever toute la buée (Révéler le fond)</span>
+            </button>
+        </div>
+
+        <!-- Réglages de la buée -->
+        <div class="space-y-3 bg-slate-900/50 p-3.5 rounded-xl border border-slate-800/70">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">4. Condensation & Doigt</h2>
+
+            <!-- Intensité du flou -->
+            <div class="space-y-1">
+                <div class="flex justify-between text-xs">
+                    <span class="text-slate-300">Flou de la vitre</span>
+                    <span id="val-blur" class="text-sky-400 font-medium">28 px</span>
+                </div>
+                <input id="slider-blur" type="range" min="8" max="70" value="28" class="w-full">
+            </div>
+
+            <!-- Opacité du voile laiteux -->
+            <div class="space-y-1">
+                <div class="flex justify-between text-xs">
+                    <span class="text-slate-300">Épaisseur de la buée</span>
+                    <span id="val-opacity" class="text-sky-400 font-medium">76 %</span>
+                </div>
+                <input id="slider-opacity" type="range" min="30" max="95" value="76" class="w-full">
+            </div>
+
+            <!-- Taille du doigt / pinceau -->
+            <div class="space-y-1">
+                <div class="flex justify-between text-xs">
+                    <span class="text-slate-300">Largeur du tracé (doigt)</span>
+                    <span id="val-size" class="text-sky-400 font-medium">36 px</span>
+                </div>
+                <input id="slider-size" type="range" min="14" max="100" value="36" class="w-full">
+            </div>
+
+            <!-- Option gouttes d'eau qui coulent -->
+            <div class="flex items-center justify-between pt-1">
+                <div>
+                    <span class="text-xs font-medium text-slate-200 block">Coulures d'eau réalistes</span>
+                    <span class="text-[11px] text-slate-400">Gouttes qui glissent sous les lettres</span>
+                </div>
+                <button id="toggle-drips" type="button" role="switch" aria-checked="false" class="relative inline-flex h-6 w-11 items-center rounded-full bg-slate-700 transition-colors focus:outline-none">
+                    <span id="toggle-drips-knob" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Actions & Enregistrement -->
+        <div class="space-y-2 mt-auto">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">5. Séquence complète & Export Reel</h2>
+
+            <!-- Bouton Magique : Séquence complète + Enregistrement auto -->
+            <button id="btn-full-sequence" type="button" class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-500 via-cyan-400 to-emerald-400 hover:brightness-110 text-slate-950 font-bold text-xs transition shadow-lg shadow-sky-500/25">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+                <span id="btn-full-sequence-text">Lancer la séquence complète + Enregistrer la vidéo</span>
+            </button>
+
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-reset" class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition border border-slate-700/70">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <span>Re-embuer (R)</span>
+                </button>
+
+                <button id="btn-hide-ui" class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition border border-slate-700/70">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                    <span>Masquer UI (H)</span>
+                </button>
+            </div>
+
+            <!-- Bouton d'enregistrement vidéo manuel (pour tracé libre à la souris) -->
+            <button id="btn-record" class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-800/90 hover:bg-slate-800 text-slate-200 font-medium text-xs transition border border-slate-700/80">
+                <span id="record-btn-dot" class="w-2 h-2 rounded-full bg-red-500"></span>
+                <span id="record-btn-text">Enregistrement manuel (tracé doigt/souris)</span>
+            </button>
+
+            <!-- Encart explicatif pour transfert rapide vers téléphone -->
+            <div class="p-3 rounded-xl bg-slate-950/80 border border-slate-800/90 text-[11px] text-slate-400 leading-relaxed">
+                <strong class="text-slate-200 block mb-0.5">Utiliser sur ton téléphone :</strong>
+                Clique sur <span class="text-sky-400 font-medium">Télécharger l'appli</span> en haut, envoie le fichier <code class="text-slate-300">studio-vitre-embuee.html</code> sur ton téléphone (AirDrop, WhatsApp, Drive ou Files) et ouvre-le dans Safari ou Chrome.
+            </div>
+        </div>
+
+    </aside>
+
+    <script>
+        /**
+         * Configuration et références DOM
+         */
+        const WIDTH = 1080;
+        const HEIGHT = 1920;
+
+        const reelContainer = document.getElementById('reel-container');
+        const bgCanvas = document.getElementById('bg-canvas');
+        const fogCanvas = document.getElementById('fog-canvas');
+        const dripCanvas = document.getElementById('drip-canvas');
+
+        const bgCtx = bgCanvas.getContext('2d');
+        const fogCtx = fogCanvas.getContext('2d');
+        const dripCtx = dripCanvas.getContext('2d');
+
+        // Canvas de composition interne pour l'export vidéo 1080x1920
+        const compositeCanvas = document.createElement('canvas');
+        compositeCanvas.width = WIDTH;
+        compositeCanvas.height = HEIGHT;
+        const compositeCtx = compositeCanvas.getContext('2d');
+
+        // Texture procédurale de condensation (gouttelettes microscopiques)
+        const condensationPatternCanvas = document.createElement('canvas');
+        condensationPatternCanvas.width = 512;
+        condensationPatternCanvas.height = 512;
+
+        // Éléments d'interface
+        const btnResetGradient = document.getElementById('btn-reset-gradient');
+        const imageUpload = document.getElementById('image-upload');
+        const sliderBlur = document.getElementById('slider-blur');
+        const sliderOpacity = document.getElementById('slider-opacity');
+        const sliderSize = document.getElementById('slider-size');
+
+        const valBlur = document.getElementById('val-blur');
+        const valOpacity = document.getElementById('val-opacity');
+        const valSize = document.getElementById('val-size');
+
+        // Onglets et contrôles d'écriture
+        const tabAuto = document.getElementById('tab-auto');
+        const tabManual = document.getElementById('tab-manual');
+        const panelAuto = document.getElementById('panel-auto');
+        const panelManual = document.getElementById('panel-manual');
+
+        const autoTextInput = document.getElementById('auto-text-input');
+        const autoFontSelect = document.getElementById('auto-font-select');
+        const sliderAutoSpeed = document.getElementById('slider-auto-speed');
+        const sliderAutoSize = document.getElementById('slider-auto-size');
+        const sliderAutoY = document.getElementById('slider-auto-y');
+        const btnStartAuto = document.getElementById('btn-start-auto');
+        const btnStartAutoText = document.getElementById('btn-start-auto-text');
+        const sliderStabilizer = document.getElementById('slider-stabilizer');
+
+        // Éléments de révélation complète et séquence automatique
+        const clearStyleSelect = document.getElementById('clear-style-select');
+        const btnClearAll = document.getElementById('btn-clear-all');
+        const btnFullSequence = document.getElementById('btn-full-sequence');
+        const btnFullSequenceText = document.getElementById('btn-full-sequence-text');
+
+        const valAutoSpeed = document.getElementById('val-auto-speed');
+        const valAutoSize = document.getElementById('val-auto-size');
+        const valAutoY = document.getElementById('val-auto-y');
+        const valStabilizer = document.getElementById('val-stabilizer');
+
+        const toggleDripsBtn = document.getElementById('toggle-drips');
+        const toggleDripsKnob = document.getElementById('toggle-drips-knob');
+        const btnReset = document.getElementById('btn-reset');
+        const btnQuickReset = document.getElementById('btn-quick-reset');
+        const btnHideUi = document.getElementById('btn-hide-ui');
+        const btnShowUi = document.getElementById('btn-show-ui');
+        const btnRecord = document.getElementById('btn-record');
+        const recordBtnText = document.getElementById('record-btn-text');
+        const btnDownloadApp = document.getElementById('btn-download-app');
+        const btnMobileReset = document.getElementById('btn-mobile-reset');
+        const btnMobileClear = document.getElementById('btn-mobile-clear');
+        const btnMobileRecord = document.getElementById('btn-mobile-record');
+        const mobileRecText = document.getElementById('mobile-rec-text');
+        const controlPanel = document.getElementById('control-panel');
+        const minimalToolbar = document.getElementById('minimal-toolbar');
+        const helperHint = document.getElementById('helper-hint');
+        const brushCursor = document.getElementById('brush-cursor');
+        const toastBox = document.getElementById('toast-box');
+        const recBadge = document.getElementById('rec-badge');
+        const recTimer = document.getElementById('rec-timer');
+
+        /**
+         * Affiche une notification discrète en haut de l'écran
+         */
+        let toastTimeout = null;
+        function showToast(message) {
+            toastBox.textContent = message;
+            toastBox.classList.remove('opacity-0');
+            toastBox.classList.add('opacity-100');
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toastBox.classList.remove('opacity-100');
+                toastBox.classList.add('opacity-0');
+            }, 2600);
+        }
+
+        /**
+         * État de l'application
+         */
+        let state = {
+            mode: 'manual', // Tactile/souris actif dès le départ pour écrire directement au doigt
+            blurRadius: 28,
+            fogOpacity: 0.76,
+            brushSize: 36,
+            stabilizerLevel: 2,
+            enableDrips: false,
+            // Dessin manuel lissé
+            isDrawing: false,
+            lazyPoint: null,
+            midPoint: null,
+            lastPoint: null,
+            // Écriture automatique
+            autoFont: 'Caveat',
+            autoSpeed: 3,
+            autoFontSize: 135,
+            autoPosY: 0.55,
+            isAutoWriting: false,
+            autoAnimFrameId: null,
+            // Révélation complète (Temps 2)
+            clearStyle: 'wipe',
+            isClearingFog: false,
+            clearAnimFrameId: null,
+            isFullSequenceRunning: false,
+            // Interface & Enregistrement
+            uiHidden: false,
+            isRecording: false
+        };
+
+        let sourceImage = null;
+        let drips = [];
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let recStartTime = 0;
+        let recTimerInterval = null;
+
+        /**
+         * Génère le fond dégradé officiel aux couleurs #21479d, #0098da et #3bc49c
+         */
+        function loadDefaultGradientBackground() {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = WIDTH;
+            tempCanvas.height = HEIGHT;
+            const ctx = tempCanvas.getContext('2d');
+
+            // Dégradé principal en diagonale harmonieuse
+            const mainGrad = ctx.createLinearGradient(0, 0, WIDTH, HEIGHT);
+            mainGrad.addColorStop(0, '#21479d');
+            mainGrad.addColorStop(0.5, '#0098da');
+            mainGrad.addColorStop(1, '#3bc49c');
+            ctx.fillStyle = mainGrad;
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            // Halo lumineux subtil au centre pour donner du relief à travers la buée
+            const radialGlow = ctx.createRadialGradient(
+                WIDTH * 0.45, HEIGHT * 0.42, 60,
+                WIDTH * 0.5, HEIGHT * 0.5, HEIGHT * 0.65
+            );
+            radialGlow.addColorStop(0, 'rgba(255, 255, 255, 0.14)');
+            radialGlow.addColorStop(0.5, 'rgba(0, 152, 218, 0.05)');
+            radialGlow.addColorStop(1, 'rgba(15, 23, 42, 0.18)');
+            ctx.fillStyle = radialGlow;
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            const gradientImg = new Image();
+            gradientImg.onload = () => {
+                sourceImage = gradientImg;
+                renderAllLayers();
+            };
+            gradientImg.src = tempCanvas.toDataURL('image/png');
+        }
+
+        /**
+         * Génère une texture réaliste de micro-gouttelettes de condensation
+         */
+        function generateCondensationTexture() {
+            const ctx = condensationPatternCanvas.getContext('2d');
+            ctx.clearRect(0, 0, 512, 512);
+
+            for (let i = 0; i < 4500; i++) {
+                const x = Math.random() * 512;
+                const y = Math.random() * 512;
+                const r = Math.random() * 1.4 + 0.3;
+                const alpha = Math.random() * 0.14 + 0.03;
+
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.fill();
+            }
+
+            for (let i = 0; i < 320; i++) {
+                const x = Math.random() * 512;
+                const y = Math.random() * 512;
+                const r = Math.random() * 2.8 + 1.2;
+
+                ctx.beginPath();
+                ctx.arc(x, y + 1.2, r, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.08)';
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.35, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+                ctx.fill();
+            }
+        }
+
+        /**
+         * Charge en priorité la photo jointe du stand PRED (image_f683b5.jpg),
+         * avec un visuel de secours propre si le fichier local n'est pas accessible.
+         */
+        function loadDefaultStandImage() {
+            const img = new Image();
+            img.onload = () => {
+                sourceImage = img;
+                renderAllLayers();
+            };
+            img.onerror = () => {
+                createFallbackStandArtwork();
+            };
+            img.src = ATTACHED_STAND_IMAGE;
+        }
+
+        /**
+         * Visuel de secours fidèle au stand PRED Laboratoires (enseigne haute + colonne CAVEX + comptoir)
+         */
+        function createFallbackStandArtwork() {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = WIDTH;
+            tempCanvas.height = HEIGHT;
+            const ctx = tempCanvas.getContext('2d');
+
+            const grad = ctx.createLinearGradient(0, 0, WIDTH, HEIGHT);
+            grad.addColorStop(0, '#1e293b');
+            grad.addColorStop(0.55, '#cbd5e1');
+            grad.addColorStop(1, '#92400e');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            // Enseigne lumineuse PRED
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(190, 420, WIDTH - 320, 230);
+
+            ctx.fillStyle = '#0284c7';
+            ctx.font = 'bold 118px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('PRED', WIDTH / 2 + 50, 545);
+
+            ctx.fillStyle = '#10b981';
+            ctx.font = '500 34px Inter, sans-serif';
+            ctx.fillText('L A B O R A T O I R E S', WIDTH / 2 + 50, 608);
+
+            // Comptoir blanc à droite
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(540, 1180, 460, 320);
+            ctx.fillStyle = '#0284c7';
+            ctx.font = 'bold 46px Inter, sans-serif';
+            ctx.fillText('PRED', 790, 1265);
+
+            const fallbackImg = new Image();
+            fallbackImg.onload = () => {
+                sourceImage = fallbackImg;
+                renderAllLayers();
+            };
+            fallbackImg.src = tempCanvas.toDataURL('image/png');
+        }
+
+        /**
+         * Dessine l'image en mode "object-fit: cover" dans le format 1080x1920
+         */
+        function drawImageCover(ctx, img, x, y, w, h) {
+            const imgRatio = img.width / img.height;
+            const targetRatio = w / h;
+            let drawW, drawH, offsetX, offsetY;
+
+            if (imgRatio > targetRatio) {
+                drawH = h;
+                drawW = h * imgRatio;
+                offsetX = x - (drawW - w) / 2;
+                offsetY = y;
+            } else {
+                drawW = w;
+                drawH = w / imgRatio;
+                offsetX = x;
+                offsetY = y - (drawH - h) / 2;
+            }
+            ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
+        }
+
+        /**
+         * Reconstruit l'image nette et la couche de buée complète
+         */
+        function renderAllLayers() {
+            if (!sourceImage) return;
+
+            stopAutoWriting();
+            stopClearingFog();
+
+            // 1. Couche de fond nette
+            bgCtx.clearRect(0, 0, WIDTH, HEIGHT);
+            drawImageCover(bgCtx, sourceImage, 0, 0, WIDTH, HEIGHT);
+
+            // 2. Couche de buée
+            fogCtx.save();
+            fogCtx.globalCompositeOperation = 'source-over';
+            fogCtx.clearRect(0, 0, WIDTH, HEIGHT);
+
+            fogCtx.filter = `blur(${state.blurRadius}px)`;
+            drawImageCover(fogCtx, sourceImage, -40, -40, WIDTH + 80, HEIGHT + 80);
+            fogCtx.filter = 'none';
+
+            fogCtx.fillStyle = `rgba(226, 236, 245, ${state.fogOpacity * 0.58})`;
+            fogCtx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            const pattern = fogCtx.createPattern(condensationPatternCanvas, 'repeat');
+            if (pattern) {
+                fogCtx.globalAlpha = Math.min(1, state.fogOpacity + 0.15);
+                fogCtx.fillStyle = pattern;
+                fogCtx.fillRect(0, 0, WIDTH, HEIGHT);
+                fogCtx.globalAlpha = 1;
+            }
+
+            const vignette = fogCtx.createRadialGradient(
+                WIDTH / 2, HEIGHT / 2, WIDTH * 0.25,
+                WIDTH / 2, HEIGHT / 2, HEIGHT * 0.65
+            );
+            vignette.addColorStop(0, 'rgba(255, 255, 255, 0)');
+            vignette.addColorStop(1, 'rgba(215, 228, 240, 0.28)');
+            fogCtx.fillStyle = vignette;
+            fogCtx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            fogCtx.restore();
+
+            // 3. Réinitialise les gouttes
+            drips = [];
+            dripCtx.clearRect(0, 0, WIDTH, HEIGHT);
+        }
+
+        /**
+         * Efface la buée sur un segment avec dégradé radial doux (trace de doigt humide)
+         */
+        function eraseFogLine(x1, y1, x2, y2, customRadius) {
+            const radius = customRadius || state.brushSize;
+            const dist = Math.hypot(x2 - x1, y2 - y1);
+            const step = Math.max(1.5, radius * 0.12);
+            const steps = Math.ceil(dist / step);
+
+            fogCtx.save();
+            fogCtx.globalCompositeOperation = 'destination-out';
+
+            for (let i = 0; i <= steps; i++) {
+                const t = steps === 0 ? 0 : i / steps;
+                const x = x1 + (x2 - x1) * t;
+                const y = y1 + (y2 - y1) * t;
+
+                const grad = fogCtx.createRadialGradient(x, y, radius * 0.35, x, y, radius);
+                grad.addColorStop(0, 'rgba(0, 0, 0, 0.98)');
+                grad.addColorStop(0.65, 'rgba(0, 0, 0, 0.72)');
+                grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+                fogCtx.fillStyle = grad;
+                fogCtx.beginPath();
+                fogCtx.arc(x, y, radius, 0, Math.PI * 2);
+                fogCtx.fill();
+            }
+
+            fogCtx.restore();
+
+            // Déclenche occasionnellement une coulure d'eau réaliste (uniquement pendant l'écriture)
+            if (!state.isClearingFog && state.enableDrips && Math.random() < 0.032 && drips.length < 30) {
+                drips.push({
+                    x: x2 + (Math.random() - 0.5) * radius * 0.7,
+                    y: y2 + radius * 0.35,
+                    radius: Math.random() * 2.8 + 2.2,
+                    speed: Math.random() * 1.1 + 0.55,
+                    maxLife: Math.random() * 220 + 130,
+                    life: 0
+                });
+            }
+        }
+
+        /**
+         * Efface un point unique (tampon doux)
+         */
+        function eraseFogDot(x, y, customRadius) {
+            eraseFogLine(x, y, x + 0.1, y + 0.1, customRadius);
+        }
+
+        /**
+         * MODE MAGIQUE : ÉCRITURE AUTOMATIQUE LETTRE PAR LETTRE
+         * Analyse les pixels de la police manuscrite ligne par ligne et trace un mouvement
+         * continu de gauche à droite sur chaque ligne, comme un doigt invisible.
+         * Accepte un callback optionnel `onCompleteCallback` pour chaîner avec le balayage final.
+         */
+        async function startAutoWriting(onCompleteCallback) {
+            const rawText = autoTextInput.value;
+            if (!rawText || !rawText.trim()) {
+                showToast('Saisis d\'abord un texte à écrire');
+                if (typeof onCompleteCallback === 'function') onCompleteCallback(false);
+                return;
+            }
+
+            // Re-embue la vitre proprement avant de lancer l'animation d'écriture
+            renderAllLayers();
+
+            // S'assure que la police Google Font choisie est bien chargée
+            const fontSpec = `700 ${state.autoFontSize}px "${state.autoFont}"`;
+            try {
+                await document.fonts.load(fontSpec);
+            } catch (err) {
+                console.warn('Police en cours de chargement', err);
+            }
+
+            // Prépare le masque complet du texte dans un canvas hors-écran
+            const textCanvas = document.createElement('canvas');
+            textCanvas.width = WIDTH;
+            textCanvas.height = HEIGHT;
+            const tCtx = textCanvas.getContext('2d');
+
+            const lines = rawText.split('\n');
+            const lineHeight = state.autoFontSize * 1.18;
+            const totalTextHeight = lines.length * lineHeight;
+            const centerY = HEIGHT * state.autoPosY;
+            const startY = centerY - totalTextHeight / 2 + lineHeight * 0.72;
+
+            tCtx.font = fontSpec;
+            tCtx.textAlign = 'center';
+            tCtx.textBaseline = 'alphabetic';
+            tCtx.lineJoin = 'round';
+            tCtx.lineCap = 'round';
+
+            // Double passe (halo doux + cœur net) pour un aspect doigt dans la buée
+            tCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+            tCtx.shadowBlur = 14;
+            tCtx.fillStyle = '#000000';
+            tCtx.strokeStyle = '#000000';
+            tCtx.lineWidth = Math.max(4, state.autoFontSize * 0.045);
+
+            const lineInfos = [];
+            lines.forEach((line, idx) => {
+                const y = startY + idx * lineHeight;
+                if (line.trim().length > 0) {
+                    tCtx.strokeText(line, WIDTH / 2, y);
+                    tCtx.fillText(line, WIDTH / 2, y);
+                    const metrics = tCtx.measureText(line);
+                    lineInfos.push({
+                        text: line,
+                        y: y,
+                        width: metrics.width,
+                        top: y - state.autoFontSize * 0.9,
+                        bottom: y + state.autoFontSize * 0.35
+                    });
+                }
+            });
+
+            // Génère les points de passage (waypoints) du doigt de gauche à droite pour chaque ligne
+            const imgData = tCtx.getImageData(0, 0, WIDTH, HEIGHT).data;
+            const waypoints = [];
+
+            lineInfos.forEach((info) => {
+                const xStart = Math.max(40, Math.floor(WIDTH / 2 - info.width / 2 - 30));
+                const xEnd = Math.min(WIDTH - 40, Math.ceil(WIDTH / 2 + info.width / 2 + 30));
+                const yTop = Math.max(0, Math.floor(info.top));
+                const yBot = Math.min(HEIGHT - 1, Math.ceil(info.bottom));
+
+                for (let x = xStart; x <= xEnd; x += 5) {
+                    let sumY = 0;
+                    let count = 0;
+                    for (let y = yTop; y <= yBot; y += 3) {
+                        const alpha = imgData[(y * WIDTH + x) * 4 + 3];
+                        if (alpha > 40) {
+                            sumY += y;
+                            count++;
+                        }
+                    }
+                    if (count > 0) {
+                        waypoints.push({
+                            x: x,
+                            y: sumY / count,
+                            lineTop: yTop,
+                            lineBot: yBot
+                        });
+                    }
+                }
+            });
+
+            if (waypoints.length === 0) {
+                if (typeof onCompleteCallback === 'function') onCompleteCallback(false);
+                return;
+            }
+
+            state.isAutoWriting = true;
+            btnStartAutoText.textContent = 'Arrêter l\'écriture';
+            btnStartAuto.classList.replace('bg-emerald-500', 'bg-amber-500');
+
+            // Vitesse de progression en pixels/frame selon le curseur (1 à 5)
+            const speedMap = { 1: 1.3, 2: 2.2, 3: 3.5, 4: 5.2, 5: 8.0 };
+            const stepsPerFrame = speedMap[state.autoSpeed] || 3.5;
+
+            let currentIndex = 0;
+            const revealRadius = Math.max(24, state.autoFontSize * 0.32);
+
+            function stepAutoWrite() {
+                if (!state.isAutoWriting) return;
+
+                const targetIndex = Math.min(waypoints.length - 1, currentIndex + stepsPerFrame);
+
+                while (currentIndex < targetIndex) {
+                    const idx = Math.floor(currentIndex);
+                    const wp = waypoints[idx];
+
+                    // Révèle progressivement la bande verticale du texte pré-rendu autour du doigt
+                    fogCtx.save();
+                    fogCtx.globalCompositeOperation = 'destination-out';
+
+                    // Dégradé horizontal doux sur le bord avant du doigt
+                    fogCtx.drawImage(
+                        textCanvas,
+                        Math.max(0, wp.x - 18), wp.lineTop, 26, wp.lineBot - wp.lineTop,
+                        Math.max(0, wp.x - 18), wp.lineTop, 26, wp.lineBot - wp.lineTop
+                    );
+
+                    // Léger halo humide autour du passage du doigt
+                    const halo = fogCtx.createRadialGradient(wp.x, wp.y, revealRadius * 0.2, wp.x, wp.y, revealRadius * 1.25);
+                    halo.addColorStop(0, 'rgba(0,0,0,0.32)');
+                    halo.addColorStop(1, 'rgba(0,0,0,0)');
+                    fogCtx.fillStyle = halo;
+                    fogCtx.beginPath();
+                    fogCtx.arc(wp.x, wp.y, revealRadius * 1.25, 0, Math.PI * 2);
+                    fogCtx.fill();
+
+                    fogCtx.restore();
+
+                    // Génère parfois une petite goutte sous les lettres écrites
+                    if (state.enableDrips && Math.random() < 0.025 && drips.length < 28) {
+                        drips.push({
+                            x: wp.x + (Math.random() - 0.5) * 20,
+                            y: wp.y + state.autoFontSize * 0.22,
+                            radius: Math.random() * 2.5 + 2.0,
+                            speed: Math.random() * 1.0 + 0.5,
+                            maxLife: Math.random() * 200 + 120,
+                            life: 0
+                        });
+                    }
+
+                    currentIndex += 1;
+                }
+
+                if (currentIndex < waypoints.length - 1) {
+                    state.autoAnimFrameId = requestAnimationFrame(stepAutoWrite);
+                } else {
+                    // Passe finale pour garantir une lisibilité parfaite de toutes les lettres
+                    fogCtx.save();
+                    fogCtx.globalCompositeOperation = 'destination-out';
+                    fogCtx.drawImage(textCanvas, 0, 0);
+                    fogCtx.restore();
+
+                    stopAutoWriting();
+                    if (typeof onCompleteCallback === 'function') {
+                        onCompleteCallback(true);
+                    } else {
+                        showToast('Message écrit ! Clique sur « Enlever toute la buée » pour révéler le stand');
+                    }
+                }
+            }
+
+            state.autoAnimFrameId = requestAnimationFrame(stepAutoWrite);
+        }
+
+        function stopAutoWriting() {
+            state.isAutoWriting = false;
+            if (state.autoAnimFrameId) {
+                cancelAnimationFrame(state.autoAnimFrameId);
+                state.autoAnimFrameId = null;
+            }
+            btnStartAutoText.textContent = '1. Écrire le message seul';
+            btnStartAuto.classList.replace('bg-amber-500', 'bg-emerald-500');
+        }
+
+        /**
+         * TEMPS 2 : ENLEVER TOUTE LA BUÉE (RÉVÉLATION COMPLÈTE DU STAND)
+         * Propose deux animations réalistes :
+         * - 'wipe' : Coup de main / chiffon large en zig-zag diagonal (essuie-glace) qui balaie toute la vitre
+         * - 'dissolve' : Dissipation progressive et nette de toute la condensation
+         */
+        function clearAllFogAnimated(onCompleteCallback) {
+            if (state.isClearingFog) return;
+            stopAutoWriting();
+
+            state.isClearingFog = true;
+            btnClearAll.disabled = true;
+            btnClearAll.classList.add('opacity-60');
+
+            // Vide progressivement les gouttelettes en suspens
+            drips = [];
+
+            if (state.clearStyle === 'dissolve') {
+                // Animation 2B : Dissipation douce et uniforme de toute la vitre sur ~1.3s
+                let progress = 0;
+                const totalFrames = 42;
+
+                function stepDissolve() {
+                    if (!state.isClearingFog) return;
+                    progress++;
+
+                    fogCtx.save();
+                    fogCtx.globalCompositeOperation = 'destination-out';
+                    // Effacement progressif par voiles successifs doux
+                    const alphaStep = progress >= totalFrames ? 1.0 : 0.14;
+                    fogCtx.fillStyle = `rgba(0, 0, 0, ${alphaStep})`;
+                    fogCtx.fillRect(0, 0, WIDTH, HEIGHT);
+                    fogCtx.restore();
+
+                    if (progress < totalFrames) {
+                        state.clearAnimFrameId = requestAnimationFrame(stepDissolve);
+                    } else {
+                        fogCtx.clearRect(0, 0, WIDTH, HEIGHT);
+                        stopClearingFog();
+                        if (typeof onCompleteCallback === 'function') {
+                            onCompleteCallback();
+                        } else {
+                            showToast('Fond dégradé révélé en HD !');
+                        }
+                    }
+                }
+
+                state.clearAnimFrameId = requestAnimationFrame(stepDissolve);
+            } else {
+                // Animation 2A : Coup de main / chiffon large en passages amples de haut en bas (essuie-glace)
+                const sweepPoints = [];
+                const rows = 7;
+                const marginX = -140;
+                const maxX = WIDTH + 140;
+
+                for (let r = 0; r <= rows; r++) {
+                    const y = (HEIGHT / rows) * r;
+                    const leftToRight = r % 2 === 0;
+                    const startX = leftToRight ? marginX : maxX;
+                    const endX = leftToRight ? maxX : marginX;
+                    const segments = 18;
+
+                    for (let s = 0; s <= segments; s++) {
+                        const t = s / segments;
+                        const x = startX + (endX - startX) * t;
+                        // Légère courbe d'arc naturel du bras qui essuie la vitre
+                        const arcY = y + Math.sin(t * Math.PI) * 55;
+                        sweepPoints.push({ x, y: arcY });
+                    }
+                }
+
+                let idx = 0;
+                const wipeRadius = 215; // Largeur d'une main ouverte ou d'un chiffon
+                const pointsPerFrame = 3.2;
+
+                function stepWipe() {
+                    if (!state.isClearingFog) return;
+
+                    const target = Math.min(sweepPoints.length - 1, idx + pointsPerFrame);
+                    while (idx < target) {
+                        const i = Math.floor(idx);
+                        const p1 = sweepPoints[i];
+                        const p2 = sweepPoints[i + 1];
+                        if (p1 && p2) {
+                            eraseFogLine(p1.x, p1.y, p2.x, p2.y, wipeRadius);
+                        }
+                        idx += 1;
+                    }
+
+                    if (idx < sweepPoints.length - 1) {
+                        state.clearAnimFrameId = requestAnimationFrame(stepWipe);
+                    } else {
+                        // Nettoyage final des bords résiduels pour une image 100% nette
+                        fogCtx.clearRect(0, 0, WIDTH, HEIGHT);
+                        stopClearingFog();
+                        if (typeof onCompleteCallback === 'function') {
+                            onCompleteCallback();
+                        } else {
+                            showToast('Fond dégradé révélé en HD !');
+                        }
+                    }
+                }
+
+                state.clearAnimFrameId = requestAnimationFrame(stepWipe);
+            }
+        }
+
+        function stopClearingFog() {
+            state.isClearingFog = false;
+            if (state.clearAnimFrameId) {
+                cancelAnimationFrame(state.clearAnimFrameId);
+                state.clearAnimFrameId = null;
+            }
+            btnClearAll.disabled = false;
+            btnClearAll.classList.remove('opacity-60');
+        }
+
+        /**
+         * SÉQUENCE COMPLÈTE EN 1 CLIC + ENREGISTREMENT VIDÉO AUTOMATIQUE :
+         * 0. Démarre l'enregistrement vidéo (0,5s de vitre embuée au début)
+         * 1. Écrit le message dans la buée
+         * 2. Marque une pause de 1,2s pour lire le message
+         * 3. Enlève toute la buée pour dévoiler le stand Laboratoires PRED en HD
+         * 4. Maintient le stand visible 2,0s puis télécharge automatiquement la vidéo du Reel
+         */
+        function runFullReelSequenceAndRecord() {
+            if (state.isFullSequenceRunning) return;
+            state.isFullSequenceRunning = true;
+
+            btnFullSequence.disabled = true;
+            btnFullSequence.classList.add('opacity-75');
+            btnFullSequenceText.textContent = 'Séquence Reel en cours...';
+
+            // 1. Préparer la vitre 100 % embuée et démarrer l'enregistrement
+            renderAllLayers();
+            startVideoRecording();
+
+            // Courte introduction vitre embuée (550 ms) avant le début de l'écriture
+            setTimeout(() => {
+                startAutoWriting((success) => {
+                    if (!success) {
+                        finishFullSequence();
+                        return;
+                    }
+
+                    // Pause de lecture du message écrit dans la buée (1,2 seconde)
+                    setTimeout(() => {
+                        clearAllFogAnimated(() => {
+                            // Temps d'exposition du stand révélé en HD (2,2 secondes) avant fin du Reel
+                            setTimeout(() => {
+                                finishFullSequence();
+                            }, 2200);
+                        });
+                    }, 1200);
+                });
+            }, 550);
+        }
+
+        function finishFullSequence() {
+            if (state.isRecording) {
+                stopVideoRecording();
+            }
+            state.isFullSequenceRunning = false;
+            btnFullSequence.disabled = false;
+            btnFullSequence.classList.remove('opacity-75');
+            btnFullSequenceText.textContent = 'Lancer la séquence complète + Enregistrer la vidéo';
+        }
+
+        /**
+         * Boucle d'animation : fait glisser les gouttes d'eau et met à jour le flux vidéo
+         */
+        function animationLoop() {
+            dripCtx.clearRect(0, 0, WIDTH, HEIGHT);
+
+            for (let i = drips.length - 1; i >= 0; i--) {
+                const d = drips[i];
+                d.life++;
+
+                const prevY = d.y;
+                d.y += d.speed;
+                d.x += Math.sin(d.life * 0.08) * 0.22;
+                d.speed *= 0.996;
+
+                fogCtx.save();
+                fogCtx.globalCompositeOperation = 'destination-out';
+                const trailGrad = fogCtx.createRadialGradient(d.x, d.y, 0.5, d.x, d.y, d.radius * 1.4);
+                trailGrad.addColorStop(0, 'rgba(0, 0, 0, 0.9)');
+                trailGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                fogCtx.fillStyle = trailGrad;
+                fogCtx.beginPath();
+                fogCtx.moveTo(d.x, prevY);
+                fogCtx.lineTo(d.x, d.y);
+                fogCtx.arc(d.x, d.y, d.radius * 1.3, 0, Math.PI * 2);
+                fogCtx.fill();
+                fogCtx.restore();
+
+                const opacity = Math.max(0, 1 - d.life / d.maxLife);
+                dripCtx.save();
+                dripCtx.beginPath();
+                dripCtx.arc(d.x, d.y, d.radius, 0, Math.PI * 2);
+                dripCtx.fillStyle = `rgba(255, 255, 255, ${0.42 * opacity})`;
+                dripCtx.fill();
+
+                dripCtx.beginPath();
+                dripCtx.arc(d.x - d.radius * 0.3, d.y - d.radius * 0.3, d.radius * 0.35, 0, Math.PI * 2);
+                dripCtx.fillStyle = `rgba(255, 255, 255, ${0.85 * opacity})`;
+                dripCtx.fill();
+                dripCtx.restore();
+
+                if (d.life >= d.maxLife || d.y > HEIGHT) {
+                    drips.splice(i, 1);
+                }
+            }
+
+            if (state.isRecording) {
+                compositeCtx.clearRect(0, 0, WIDTH, HEIGHT);
+                compositeCtx.drawImage(bgCanvas, 0, 0);
+                compositeCtx.drawImage(fogCanvas, 0, 0);
+                compositeCtx.drawImage(dripCanvas, 0, 0);
+            }
+
+            requestAnimationFrame(animationLoop);
+        }
+
+        /**
+         * Convertit les coordonnées écran vers la grille interne 1080x1920
+         */
+        function getCanvasCoords(clientX, clientY) {
+            const rect = reelContainer.getBoundingClientRect();
+            const scaleX = WIDTH / rect.width;
+            const scaleY = HEIGHT / rect.height;
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
+        /**
+         * Gestion de l'indicateur visuel du doigt
+         */
+        function updateCursorVisual(clientX, clientY, visible) {
+            if (!visible) {
+                brushCursor.style.display = 'none';
+                return;
+            }
+            const rect = reelContainer.getBoundingClientRect();
+            const visualDiameter = (state.brushSize * 2) * (rect.width / WIDTH);
+            brushCursor.style.display = 'block';
+            brushCursor.style.left = `${clientX}px`;
+            brushCursor.style.top = `${clientY}px`;
+            brushCursor.style.width = `${visualDiameter}px`;
+            brushCursor.style.height = `${visualDiameter}px`;
+        }
+
+        /**
+         * Événements Souris & Tactile avec Stabilisateur "Lazy Mouse" + Courbes de Bézier
+         */
+        function handlePointerDown(clientX, clientY) {
+            stopAutoWriting();
+            stopClearingFog();
+            state.isDrawing = true;
+            const pt = getCanvasCoords(clientX, clientY);
+            state.lazyPoint = { ...pt };
+            state.midPoint = { ...pt };
+            state.lastPoint = { ...pt };
+            eraseFogDot(pt.x, pt.y);
+        }
+
+        function handlePointerMove(clientX, clientY, isTouch = false) {
+            if (!isTouch) {
+                updateCursorVisual(clientX, clientY, true);
+            }
+            if (!state.isDrawing || !state.lazyPoint) return;
+
+            const rawPt = getCanvasCoords(clientX, clientY);
+
+            // Facteur d'inertie selon le niveau de stabilisation (1 = réactif, 3 = très fluide)
+            const inertiaMap = { 1: 0.55, 2: 0.28, 3: 0.15 };
+            const lerpFactor = inertiaMap[state.stabilizerLevel] || 0.28;
+
+            const nextLazy = {
+                x: state.lazyPoint.x + (rawPt.x - state.lazyPoint.x) * lerpFactor,
+                y: state.lazyPoint.y + (rawPt.y - state.lazyPoint.y) * lerpFactor
+            };
+
+            const nextMid = {
+                x: (state.lazyPoint.x + nextLazy.x) / 2,
+                y: (state.lazyPoint.y + nextLazy.y) / 2
+            };
+
+            // Interpolation quadratique de Bézier pour arrondir les virages
+            const steps = 6;
+            let prev = state.midPoint;
+            for (let i = 1; i <= steps; i++) {
+                const t = i / steps;
+                const invT = 1 - t;
+                const bx = invT * invT * state.midPoint.x + 2 * invT * t * state.lazyPoint.x + t * t * nextMid.x;
+                const by = invT * invT * state.midPoint.y + 2 * invT * t * state.lazyPoint.y + t * t * nextMid.y;
+                eraseFogLine(prev.x, prev.y, bx, by);
+                prev = { x: bx, y: by };
+            }
+
+            state.lazyPoint = nextLazy;
+            state.midPoint = nextMid;
+            state.lastPoint = nextLazy;
+        }
+
+        function handlePointerUp() {
+            state.isDrawing = false;
+            state.lazyPoint = null;
+            state.midPoint = null;
+            state.lastPoint = null;
+        }
+
+        reelContainer.addEventListener('mousedown', (e) => {
+            if (e.button === 0) handlePointerDown(e.clientX, e.clientY);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            const rect = reelContainer.getBoundingClientRect();
+            const isInside = (
+                e.clientX >= rect.left &&
+                e.clientX <= rect.right &&
+                e.clientY >= rect.top &&
+                e.clientY <= rect.bottom
+            );
+            if (isInside || state.isDrawing) {
+                handlePointerMove(e.clientX, e.clientY);
+            } else {
+                updateCursorVisual(e.clientX, e.clientY, false);
+            }
+        });
+
+        window.addEventListener('mouseup', handlePointerUp);
+
+        reelContainer.addEventListener('touchstart', (e) => {
+            if (e.cancelable) e.preventDefault();
+            const touch = e.touches[0];
+            handlePointerDown(touch.clientX, touch.clientY);
+        }, { passive: false });
+
+        reelContainer.addEventListener('touchmove', (e) => {
+            if (e.cancelable) e.preventDefault();
+            const touch = e.touches[0];
+            handlePointerMove(touch.clientX, touch.clientY, true);
+        }, { passive: false });
+
+        reelContainer.addEventListener('touchend', (e) => {
+            if (e.cancelable) e.preventDefault();
+            handlePointerUp();
+            updateCursorVisual(0, 0, false);
+        }, { passive: false });
+
+        reelContainer.addEventListener('touchcancel', () => {
+            handlePointerUp();
+            updateCursorVisual(0, 0, false);
+        });
+
+        /**
+         * Télécharge l'application complète sous forme d'un fichier HTML autonome
+         * prêt à être transféré et ouvert sur iPhone ou Android.
+         */
+        function downloadStandaloneMobileApp() {
+            try {
+                // Clone le document et nettoie les classes d'état temporaires avant export
+                const docClone = document.documentElement.cloneNode(true);
+                const toastClone = docClone.querySelector('#toast-box');
+                if (toastClone) {
+                    toastClone.classList.add('opacity-0');
+                    toastClone.classList.remove('opacity-100');
+                }
+                const htmlContent = '<!DOCTYPE html>\n' + docClone.outerHTML;
+                const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'studio-vitre-embuee.html';
+                document.body.appendChild(a);
+                a.click();
+
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 250);
+
+                showToast('Fichier studio-vitre-embuee.html téléchargé !');
+            } catch (err) {
+                console.error(err);
+                showToast('Erreur lors du téléchargement de l\'appli');
+            }
+        }
+
+        btnDownloadApp.addEventListener('click', downloadStandaloneMobileApp);
+
+        // Boutons rapides mobile
+        btnMobileReset.addEventListener('click', () => {
+            renderAllLayers();
+            showToast('Vitre re-embuée');
+        });
+        btnMobileClear.addEventListener('click', () => {
+            clearAllFogAnimated();
+        });
+        btnMobileRecord.addEventListener('click', () => {
+            if (state.isRecording) {
+                stopVideoRecording();
+            } else {
+                startVideoRecording();
+            }
+        });
+
+        /**
+         * Bascule entre le mode Écriture automatique et le mode Pinceau lissé
+         */
+        function switchMode(newMode) {
+            state.mode = newMode;
+            if (newMode === 'auto') {
+                tabAuto.className = 'py-2 px-2.5 rounded-lg text-xs font-medium transition bg-sky-500 text-slate-950 shadow-sm';
+                tabManual.className = 'py-2 px-2.5 rounded-lg text-xs font-medium transition text-slate-300 hover:text-white';
+                panelAuto.classList.remove('hidden');
+                panelManual.classList.add('hidden');
+            } else {
+                tabManual.className = 'py-2 px-2.5 rounded-lg text-xs font-medium transition bg-sky-500 text-slate-950 shadow-sm';
+                tabAuto.className = 'py-2 px-2.5 rounded-lg text-xs font-medium transition text-slate-300 hover:text-white';
+                panelManual.classList.remove('hidden');
+                panelAuto.classList.add('hidden');
+                stopAutoWriting();
+                showToast('Trace directement à la souris sur la vitre');
+            }
+        }
+
+        tabAuto.addEventListener('click', () => switchMode('auto'));
+        tabManual.addEventListener('click', () => switchMode('manual'));
+
+        /**
+         * Bouton de retour au dégradé 3 couleurs (#21479d, #0098da, #3bc49c)
+         */
+        btnResetGradient.addEventListener('click', () => {
+            loadDefaultGradientBackground();
+            showToast('Fond dégradé appliqué !');
+        });
+
+        /**
+         * Import d'image utilisateur
+         */
+        imageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    sourceImage = img;
+                    renderAllLayers();
+                    showToast('Nouvelle photo importée !');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        /**
+         * Réglages des curseurs
+         */
+        sliderBlur.addEventListener('input', (e) => {
+            state.blurRadius = parseInt(e.target.value, 10);
+            valBlur.textContent = `${state.blurRadius} px`;
+            renderAllLayers();
+        });
+
+        sliderOpacity.addEventListener('input', (e) => {
+            const pct = parseInt(e.target.value, 10);
+            state.fogOpacity = pct / 100;
+            valOpacity.textContent = `${pct} %`;
+            renderAllLayers();
+        });
+
+        sliderSize.addEventListener('input', (e) => {
+            state.brushSize = parseInt(e.target.value, 10);
+            valSize.textContent = `${state.brushSize} px`;
+        });
+
+        autoFontSelect.addEventListener('change', (e) => {
+            state.autoFont = e.target.value;
+        });
+
+        sliderAutoSpeed.addEventListener('input', (e) => {
+            state.autoSpeed = parseInt(e.target.value, 10);
+            const labels = { 1: 'Très lente', 2: 'Lente', 3: 'Normale', 4: 'Rapide', 5: 'Très rapide' };
+            valAutoSpeed.textContent = labels[state.autoSpeed] || 'Normale';
+        });
+
+        sliderAutoSize.addEventListener('input', (e) => {
+            state.autoFontSize = parseInt(e.target.value, 10);
+            valAutoSize.textContent = `${state.autoFontSize} px`;
+        });
+
+        sliderAutoY.addEventListener('input', (e) => {
+            const pct = parseInt(e.target.value, 10);
+            state.autoPosY = pct / 100;
+            valAutoY.textContent = `${pct} %`;
+        });
+
+        btnStartAuto.addEventListener('click', () => {
+            if (state.isAutoWriting) {
+                stopAutoWriting();
+            } else {
+                startAutoWriting();
+            }
+        });
+
+        clearStyleSelect.addEventListener('change', (e) => {
+            state.clearStyle = e.target.value;
+        });
+
+        btnClearAll.addEventListener('click', () => {
+            clearAllFogAnimated();
+        });
+
+        btnFullSequence.addEventListener('click', () => {
+            runFullReelSequenceAndRecord();
+        });
+
+        sliderStabilizer.addEventListener('input', (e) => {
+            state.stabilizerLevel = parseInt(e.target.value, 10);
+            const labels = { 1: 'Léger', 2: 'Moyen', 3: 'Fort (Ultra-fluide)' };
+            valStabilizer.textContent = labels[state.stabilizerLevel] || 'Moyen';
+        });
+
+        toggleDripsBtn.addEventListener('click', () => {
+            state.enableDrips = !state.enableDrips;
+            toggleDripsBtn.setAttribute('aria-checked', state.enableDrips);
+            if (state.enableDrips) {
+                toggleDripsBtn.classList.replace('bg-slate-700', 'bg-sky-500');
+                toggleDripsKnob.classList.replace('translate-x-1', 'translate-x-6');
+            } else {
+                toggleDripsBtn.classList.replace('bg-sky-500', 'bg-slate-700');
+                toggleDripsKnob.classList.replace('translate-x-6', 'translate-x-1');
+            }
+        });
+
+        /**
+         * Masquer / Afficher l'interface pour capture d'écran propre
+         */
+        function toggleInterfaceVisibility() {
+            state.uiHidden = !state.uiHidden;
+            if (state.uiHidden) {
+                controlPanel.classList.add('hidden');
+                helperHint.classList.add('hidden');
+                minimalToolbar.classList.remove('hidden');
+                reelContainer.classList.add('fullscreen-rec');
+                showToast('Interface masquée (Appuie sur H pour revenir)');
+            } else {
+                controlPanel.classList.remove('hidden');
+                helperHint.classList.remove('hidden');
+                minimalToolbar.classList.add('hidden');
+                reelContainer.classList.remove('fullscreen-rec');
+            }
+        }
+
+        btnHideUi.addEventListener('click', toggleInterfaceVisibility);
+        btnShowUi.addEventListener('click', toggleInterfaceVisibility);
+        btnReset.addEventListener('click', () => {
+            renderAllLayers();
+            showToast('Vitre re-embuée');
+        });
+        btnQuickReset.addEventListener('click', renderAllLayers);
+
+        window.addEventListener('keydown', (e) => {
+            if (document.activeElement === autoTextInput) return;
+
+            if (e.key === 'r' || e.key === 'R') {
+                renderAllLayers();
+                showToast('Vitre re-embuée');
+            } else if (e.key === 'h' || e.key === 'H') {
+                toggleInterfaceVisibility();
+            }
+        });
+
+        /**
+         * Enregistrement vidéo direct du Canvas 1080x1920
+         */
+        function startVideoRecording() {
+            if (!window.MediaRecorder) {
+                showToast('Utilise Cmd+Shift+5 sur Mac pour enregistrer l\'écran');
+                return;
+            }
+
+            try {
+                recordedChunks = [];
+                compositeCtx.drawImage(bgCanvas, 0, 0);
+                compositeCtx.drawImage(fogCanvas, 0, 0);
+                compositeCtx.drawImage(dripCanvas, 0, 0);
+
+                const stream = compositeCanvas.captureStream(30);
+                const mimeTypes = [
+                    'video/mp4;codecs=avc1',
+                    'video/mp4',
+                    'video/webm;codecs=vp9',
+                    'video/webm;codecs=vp8',
+                    'video/webm'
+                ];
+                const supportedMime = mimeTypes.find(type => MediaRecorder.isTypeSupported(type)) || '';
+
+                mediaRecorder = supportedMime
+                    ? new MediaRecorder(stream, { mimeType: supportedMime, videoBitsPerSecond: 8000000 })
+                    : new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const ext = (mediaRecorder.mimeType && mediaRecorder.mimeType.includes('mp4')) ? 'mp4' : 'webm';
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = `reel-vitre-embuee-pred-${Date.now()}.${ext}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }, 200);
+                    showToast('Vidéo du Reel téléchargée !');
+                };
+
+                mediaRecorder.start(100);
+                state.isRecording = true;
+                recStartTime = Date.now();
+
+                recordBtnText.textContent = 'Arrêter et télécharger la vidéo';
+                btnRecord.classList.replace('bg-slate-800/90', 'bg-red-600');
+                mobileRecText.textContent = 'Stop';
+                recBadge.classList.remove('hidden');
+
+                recTimerInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - recStartTime) / 1000);
+                    const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                    const secs = String(elapsed % 60).padStart(2, '0');
+                    recTimer.textContent = `Enregistrement ${mins}:${secs}`;
+                }, 500);
+            } catch (err) {
+                console.error(err);
+                showToast('Sur iPhone, utilise l\'enregistrement d\'écran iOS si besoin');
+            }
+        }
+
+        function stopVideoRecording() {
+            if (mediaRecorder && state.isRecording) {
+                mediaRecorder.stop();
+                state.isRecording = false;
+                clearInterval(recTimerInterval);
+                recordBtnText.textContent = 'Enregistrement manuel (tracé doigt/souris)';
+                btnRecord.classList.replace('bg-red-600', 'bg-slate-800/90');
+                mobileRecText.textContent = 'Filmer';
+                recBadge.classList.add('hidden');
+            }
+        }
+
+        btnRecord.addEventListener('click', () => {
+            if (state.isRecording) {
+                stopVideoRecording();
+            } else {
+                startVideoRecording();
+            }
+        });
+
+        // Initialisation au chargement de la page
+        window.onload = function () {
+            if (window.innerWidth < 1024) {
+                switchMode('manual');
+            }
+            generateCondensationTexture();
+            loadDefaultGradientBackground();
+            animationLoop();
+        };
+    </script>
+</body>
+</html>
